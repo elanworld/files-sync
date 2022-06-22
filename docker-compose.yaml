@@ -1,0 +1,17 @@
+version: '3.0'
+services:
+  samba-sync:
+    image: alanwoods/samba-sync
+    container_name: samba-sync
+    network_mode: host
+    privileged: true
+    environment:
+      TZ: Asia/Shanghai
+      SMBUSER: root
+      SMBPASSWORD: system1
+      SMBURL: //192.168.51.91/share/data/abc
+      SMBPATH: /mnt/abc
+      SMBUSER1: root
+      SMBPASSWORD1: system1
+      SMBURL1: //192.168.51.91/share/data/ab
+      SMBPATH1: /mnt/ab
