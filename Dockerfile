@@ -9,8 +9,12 @@ RUN find . -name '*.py' -type f -print -exec python build.py {} \;
 RUN find . -name '*.py' -type f -print -exec rm {} \;
 RUN echo  $'\
 mkdir $SMBPATH -p && mkdir $SMBPATH1 -p \n\
-mount -t cifs -o username="$SMBUSER",password="$SMBPASSWORD",iocharset=utf8 $SMBURL $SMBPATH \n\
-mount -t cifs -o username="$SMBUSER1",password="$SMBPASSWORD1",iocharset=utf8 $SMBURL1 $SMBPATH1 \n\
+if [ -n $SMBURL ]; then \n\
+    mount -t cifs -o username="$SMBUSER",password="$SMBPASSWORD",iocharset=utf8 $SMBURL $SMBPATH \n\
+fi \n\
+if [ -n $SMBURL1 ]; then \n\
+    mount -t cifs -o username="$SMBUSER1",password="$SMBPASSWORD1",iocharset=utf8 $SMBURL1 $SMBPATH1 \n\
+fi \n\
 python -u files_sync.pyc $SMBPATH $SMBPATH1 \n\
 ' > entrypiont.sh
 RUN chmod 777 entrypiont.sh

@@ -106,12 +106,12 @@ class FileSyncClient:
         if to_right:
             if os.path.exists(right):
                 os.remove(right)
-            shutil.copy(left, right)
+            shutil.copy2(left, right)
             return right
         else:
             if os.path.exists(left):
                 os.remove(left)
-            shutil.copy(right, left)
+            shutil.copy2(right, left)
             return left
 
     def del_file(self, file_name, left=None):
