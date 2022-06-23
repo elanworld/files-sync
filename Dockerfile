@@ -15,7 +15,7 @@ fi \n\
 if [ -n $SMBURL1 ]; then \n\
     mount -t cifs -o username="$SMBUSER1",password="$SMBPASSWORD1",iocharset=utf8 $SMBURL1 $SMBPATH1 \n\
 fi \n\
-python -u files_sync.pyc $SMBPATH $SMBPATH1 \n\
+python -u files_sync.pyc $SMBPATH $SMBPATH1 $ARGV \n\
 ' > entrypiont.sh
 RUN chmod 777 entrypiont.sh
 CMD ./entrypiont.sh

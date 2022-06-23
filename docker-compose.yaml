@@ -5,6 +5,7 @@ services:
     container_name: samba-sync
     network_mode: host
     privileged: true
+    entrypoint: tail -f /dev/null
     environment:
       TZ: Asia/Shanghai
       SMBUSER: root
@@ -15,3 +16,4 @@ services:
       SMBPASSWORD1: system1
       SMBURL1: //192.168.51.91/share/data/ab
       SMBPATH1: /mnt/ab
+      ARGV: garbage
