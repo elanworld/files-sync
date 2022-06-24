@@ -8,6 +8,7 @@ py_compile.compile(sys.argv[1], cfile=f"{sys.argv[1]}c")\n' > build.py
 RUN find . -name '*.py' -type f -print -exec python build.py {} \;
 RUN find . -name '*.py' -type f -print -exec rm {} \;
 RUN echo  $'\
+set -e \n\
 mkdir $SMBPATH -p && mkdir $SMBPATH1 -p \n\
 if [ -n $SMBURL ]; then \n\
     mount -t cifs -o username="$SMBUSER",password="$SMBPASSWORD",iocharset=utf8 $SMBURL $SMBPATH \n\

@@ -17,3 +17,5 @@ services:
       SMBURL1: //192.168.51.91/share/data/ab
       SMBPATH1: /mnt/ab
       ARGV: garbage
+    volumes:
+      - /data/samba-sync:/app/config
