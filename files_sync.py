@@ -20,8 +20,6 @@ class FileSyncClient:
         self.sync_dir2 = directory2
         self.save_file = f"config/file_info_{os.path.basename(directory1)}_{hashlib.md5(self.sync_dir2.encode()).hexdigest()}.json"
         self.garbage_flag = False
-        if "garbage" in sys.argv:
-            self.garbage_flag = True
 
     def run(self):
         origin = self.load_info()
@@ -122,7 +120,12 @@ class FileSyncClient:
             path = path1
         else:
             path = path2
-        shutil.move(path, garbage) if self.garbage_flag else os.remove(path)
+        if self.garbage_flag:
+            dst = os.path.join(garbage, os.path.dirname(file))
+            os.makedirs(dst, exist_ok=True)
+            shutil.move(path, dst)
+        else:
+            os.remove(path)
 
     def log(self, logs):
         python_box.log(logs, "config/sync.log")
@@ -130,5 +133,7 @@ class FileSyncClient:
 
 if __name__ == '__main__':
     client = FileSyncClient(sys.argv[1], sys.argv[2])
+    if "garbage" in sys.argv:
+        client.garbage_flag = True
     client.run()
     client.log("done")
