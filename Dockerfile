@@ -1,6 +1,7 @@
 FROM python:3.8.0-alpine
 WORKDIR /app
 RUN apk add util-linux
+RUN apk add -U tzdata
 ADD . .
 RUN echo  $'import py_compile\n\
 import sys\n\
