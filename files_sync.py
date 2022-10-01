@@ -77,7 +77,7 @@ class FileSyncClient:
 
     def get_files_name(self, directory: str, left: bool) -> Dict[Union[str, bytes], Info]:
         dir_list = {}
-        for i in pathlib.Path(directory).rglob(f"*"):  # type: nt.DirEntry
+        for i in pathlib.Path(directory).rglob(f"*"):
             stat = i.stat()  # type: os.stat_result
             info = Info(stat)
             info.st_is_file = i.is_file()
