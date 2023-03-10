@@ -58,7 +58,7 @@ class FileSyncClient:
 
         self.sync_dir1 = directory1
         self.sync_dir2 = directory2
-        self.save_file = f"config/file_info_{os.path.basename(directory1)}_{hashlib.md5((self.sync_dir1 + self.sync_dir2).encode()).hexdigest()}.json"
+        self.save_file = f"config/file_info_{os.path.basename(directory1)}_{hashlib.md5((self.sync_dir1 + self.sync_dir2).encode()).hexdigest()}.ini"
         self.garbage_flag = False
 
     def run(self):
@@ -181,9 +181,26 @@ class FileSyncClient:
 
 
 if __name__ == '__main__':
-    client = FileSyncClient(sys.argv[1], sys.argv[2])
-    if "garbage" in sys.argv:
-        client.garbage_flag = True
+    str_garbage = "garbage"
+    dir1 = "dir1"
+    dir2 = "dir2"
+    config = python_box.read_config("config/config_fileSync.ini",
+                                    {"config from file": "0", ("%s" % dir1): "", ("%s" % dir2): "",
+                                     ("%s" % str_garbage): "0"})
+    if config is None:
+        exit(0)
+    if config.get(str_garbage) == "1":
+        argv_1 = config.get(dir1)
+        argv_2 = config.get(dir2)
+    else:
+        argv_1 = sys.argv[1]
+        argv_2 = sys.argv[2]
+    client = FileSyncClient(argv_1, argv_2)
+    if config.get(str_garbage) == "1":
+        client.garbage_flag = config.get(str_garbage) == "1"
+    else:
+        if "garbage" in sys.argv:
+            client.garbage_flag = True
     client.log("start")
     client.run()
     client.log("done")
