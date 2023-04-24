@@ -189,15 +189,15 @@ if __name__ == '__main__':
                                      ("%s" % str_garbage): "0"})
     if config is None:
         exit(0)
-    if config.get(str_garbage) == "1":
+    if config.get(str_garbage) == 1:
         argv_1 = config.get(dir1)
         argv_2 = config.get(dir2)
     else:
         argv_1 = sys.argv[1]
         argv_2 = sys.argv[2]
     client = FileSyncClient(argv_1, argv_2)
-    if config.get(str_garbage) == "1":
-        client.garbage_flag = config.get(str_garbage) == "1"
+    if config.get(str_garbage) == 1:
+        client.garbage_flag = config.get(str_garbage) == 1
     else:
         if "garbage" in sys.argv:
             client.garbage_flag = True
