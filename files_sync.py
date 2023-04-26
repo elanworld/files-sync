@@ -184,19 +184,20 @@ if __name__ == '__main__':
     str_garbage = "garbage"
     dir1 = "dir1"
     dir2 = "dir2"
+    config_from_file = "config from file"
     config = python_box.read_config("config/config_fileSync.ini",
-                                    {"config from file": "0", ("%s" % dir1): "", ("%s" % dir2): "",
+                                    {("%s" % config_from_file): "0", ("%s" % dir1): "", ("%s" % dir2): "",
                                      ("%s" % str_garbage): "0"})
     if config is None:
         exit(0)
-    if config.get(str_garbage) == 1:
+    if config.get(config_from_file) == 1:
         argv_1 = config.get(dir1)
         argv_2 = config.get(dir2)
     else:
         argv_1 = sys.argv[1]
         argv_2 = sys.argv[2]
     client = FileSyncClient(argv_1, argv_2)
-    if config.get(str_garbage) == 1:
+    if config.get(config_from_file) == 1:
         client.garbage_flag = config.get(str_garbage) == 1
     else:
         if "garbage" in sys.argv:
