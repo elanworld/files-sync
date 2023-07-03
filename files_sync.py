@@ -10,7 +10,7 @@ from typing import Dict, Union
 from common import python_box
 
 
-class Info(dict):
+class FileInfo(dict):
     st_mode: int  # protection bits,
     st_ino: int  # inode number,
     st_dev: int  # device,
@@ -62,9 +62,12 @@ class FileSyncClient:
         self.garbage_flag = False
 
     def run(self):
-        origin = self.load_info()
+        origin = self.load_saved_info()
         files1 = self.get_files_name(self.sync_dir1, True)
         files2 = self.get_files_name(self.sync_dir2, False)
+        if (len(files1) == 0 or len(files2) == 0) and origin:
+            self.log("directory empty, exit!")
+            return
         change_file = self.get_change_file(origin, files1, files2)
         new = [k for k in sorted(change_file.get(self.str_new).values(), key=lambda x: x.st_path, )]
         deleted = [k for k in sorted(change_file.get(self.str_del).values(), key=lambda x: x.st_path, reverse=True)]
@@ -75,11 +78,11 @@ class FileSyncClient:
         [self.del_file(k) for k in deleted]
         self.save_info(self.get_files_name(self.sync_dir1, left=True))
 
-    def get_files_name(self, directory: str, left: bool) -> Dict[Union[str, bytes], Info]:
+    def get_files_name(self, directory: str, left: bool) -> Dict[Union[str, bytes], FileInfo]:
         dir_list = {}
         for i in pathlib.Path(directory).rglob(f"*"):
             stat = i.stat()  # type: os.stat_result
-            info = Info(stat)
+            info = FileInfo(stat)
             info.st_is_file = i.is_file()
             info.st_absolute_path = i.__str__()
             file = os.path.relpath(info.st_absolute_path, directory)
@@ -90,9 +93,9 @@ class FileSyncClient:
             dir_list[file] = info
         return dir_list
 
-    def get_change_file(self, origin_file: Dict[Union[str, bytes], Info],
-                        left_file: Dict[Union[str, bytes], Info], right_file: Dict[Union[str, bytes], Info]) -> Dict[
-        str, Dict[Union[str, bytes], Info]]:
+    def get_change_file(self, origin_file: Dict[Union[str, bytes], FileInfo],
+                        left_file: Dict[Union[str, bytes], FileInfo], right_file: Dict[Union[str, bytes], FileInfo]) -> Dict[
+        str, Dict[Union[str, bytes], FileInfo]]:
         """
         根据修改时间获取新增或者删除文件
         :param origin_file:
@@ -129,7 +132,7 @@ class FileSyncClient:
                     new_files.get(self.str_del)[key] = right
         return new_files
 
-    def save_info(self, info: Dict[Union[str, bytes], Info]):
+    def save_info(self, info: Dict[Union[str, bytes], FileInfo]):
         self.log(f"save file to {self.save_file}")
         save = {}
         for k in info:
@@ -137,11 +140,15 @@ class FileSyncClient:
         with open(self.save_file, "w") as f:
             json.dump(save, f)
 
-    def load_info(self):
+    def load_saved_info(self):
+        """
+        read files information from local save file
+        :return:
+        """
         jsonOb = json.load(open(self.save_file)) if os.path.exists(self.save_file) else {}
         res = {}
         for k in jsonOb:
-            res[k] = Info(jsonOb.get(k))
+            res[k] = FileInfo(jsonOb.get(k))
         return res
 
     def copy_file(self, file):
@@ -157,7 +164,7 @@ class FileSyncClient:
             self.log(e)
         return target
 
-    def del_file(self, file: Info):
+    def del_file(self, file: FileInfo):
         self.log(
             f"{'garbage' if self.garbage_flag else 'delete'} {file.st_path} at {os.path.basename(self.sync_dir1) if file.st_left else os.path.basename(self.sync_dir2)}")
         if self.garbage_flag:
