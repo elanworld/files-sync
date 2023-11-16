@@ -5,6 +5,7 @@ import pathlib
 import re
 import shutil
 import sys
+import traceback
 from typing import Dict, Union
 
 from common import python_box
@@ -53,6 +54,7 @@ class FileSyncClient:
     str_new = "new"
     str_del = "del"
     str_garbage = ".garbage"
+    str_temp_copy = ".temp_copy"
 
     def __init__(self, directory1: str, directory2: str):
 
@@ -60,12 +62,14 @@ class FileSyncClient:
         self.sync_dir2 = directory2
         self.save_file = f"config/file_info_{os.path.basename(directory1)}_{hashlib.md5((self.sync_dir1 + self.sync_dir2).encode()).hexdigest()}.ini"
         self.garbage_flag = False
+        # copy file to temp directory then move to target path ，avoid copy didnt finished when program be interrupted
+        self.temp_copy = False
 
     def run(self):
         origin = self.load_saved_info()
         files1 = self.get_files_name(self.sync_dir1, True)
         files2 = self.get_files_name(self.sync_dir2, False)
-        if (len(files1) == 0 or len(files2) == 0) and origin:
+        if len(files1) == 0 and len(files2) == 0:
             self.log("directory empty, exit!")
             return
         change_file = self.get_change_file(origin, files1, files2)
@@ -88,14 +92,16 @@ class FileSyncClient:
             file = os.path.relpath(info.st_absolute_path, directory)
             info.st_path = file
             info.st_left = left
-            if self.garbage_flag and re.match(".garbage", info.st_path):
+            if (self.garbage_flag and re.match(self.str_garbage, info.st_path)) or (
+                    self.temp_copy and re.match(self.str_temp_copy, info.st_path)):
                 continue
             dir_list[file] = info
         return dir_list
 
     def get_change_file(self, origin_file: Dict[Union[str, bytes], FileInfo],
-                        left_file: Dict[Union[str, bytes], FileInfo], right_file: Dict[Union[str, bytes], FileInfo]) -> Dict[
-        str, Dict[Union[str, bytes], FileInfo]]:
+                        left_file: Dict[Union[str, bytes], FileInfo], right_file: Dict[Union[str, bytes], FileInfo]) -> \
+            Dict[
+                str, Dict[Union[str, bytes], FileInfo]]:
         """
         根据修改时间获取新增或者删除文件
         :param origin_file:
@@ -151,25 +157,30 @@ class FileSyncClient:
             res[k] = FileInfo(jsonOb.get(k))
         return res
 
-    def copy_file(self, file):
+    def copy_file(self, file: FileInfo):
         self.log(
-            f"copy {file.st_path} to {os.path.basename(self.sync_dir2) if file.st_left else os.path.basename(self.sync_dir1)}")
+            f"copy {file.st_path if os.path.basename(self.sync_dir1) != os.path.basename(self.sync_dir2) else file.st_absolute_path} to {os.path.basename(self.sync_dir2) if file.st_left else os.path.basename(self.sync_dir1)}")
         target = os.path.join(self.sync_dir2 if file.st_left else self.sync_dir1, file.st_path)
-        if os.path.exists(target):
-            os.remove(target) if file.st_is_file else os.removedirs(target)
-        os.makedirs(os.path.dirname(target), exist_ok=True)
         try:
-            shutil.copy2(file.st_absolute_path, target) if file.st_is_file else os.makedirs(target, exist_ok=True)
+            temp_path = self._get_temp_copy_path(file, not file.st_left)
+            shutil.copy2(file.st_absolute_path,
+                         temp_path if self.temp_copy else target) if file.st_is_file else os.makedirs(
+                target, exist_ok=True)
+            if self.temp_copy and os.path.exists(target) and os.path.isfile(target):
+                shutil.move(target, self._get_temp_copy_path(file, not file.st_left))
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            shutil.move(temp_path, target) if self.temp_copy else None
         except Exception as e:
+            traceback.print_exception(e)
             self.log(e)
         return target
 
     def del_file(self, file: FileInfo):
         self.log(
-            f"{'garbage' if self.garbage_flag else 'delete'} {file.st_path} at {os.path.basename(self.sync_dir1) if file.st_left else os.path.basename(self.sync_dir2)}")
+            f"{'garbage' if self.garbage_flag else 'delete'} {file.st_path if os.path.basename(self.sync_dir1) != os.path.basename(self.sync_dir2) else file.st_absolute_path} at {os.path.basename(self.sync_dir1) if file.st_left else os.path.basename(self.sync_dir2)}")
         if self.garbage_flag:
-            garbage_root = os.path.join(self.sync_dir1 if file.st_left else self.sync_dir2, self.str_garbage)
-            garbage_path = os.path.join(garbage_root, file.st_path)
+            os.path.join(self.sync_dir1 if file.st_left else self.sync_dir2, self.str_garbage)
+            garbage_path = self._get_garbage_path(file, file.st_left)
             garbage_dir = os.path.dirname(garbage_path)
             os.makedirs(garbage_dir, exist_ok=True)
             if os.path.exists(garbage_path):
@@ -183,6 +194,22 @@ class FileSyncClient:
         else:
             os.remove(file.st_absolute_path)
 
+    def _get_garbage_path(self, file: FileInfo, left: True):
+        os_path_join = os.path.join(os.path.join(self.sync_dir1 if left else self.sync_dir2, self.str_garbage),
+                                    file.st_path)
+        dirname = os.path.dirname(os_path_join)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
+        return os_path_join
+
+    def _get_temp_copy_path(self, file: FileInfo, left: True):
+        os_path_join = os.path.join(os.path.join(self.sync_dir1 if left else self.sync_dir2, self.str_temp_copy),
+                                    file.st_path)
+        dirname = os.path.dirname(os_path_join)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
+        return os_path_join
+
     def log(self, logs):
         python_box.log(logs, "config/sync.log")
 
@@ -192,9 +219,10 @@ if __name__ == '__main__':
     dir1 = "dir1"
     dir2 = "dir2"
     config_from_file = "config from file"
+    tmp_copy = "tmp_copy"
     config = python_box.read_config("config/config_fileSync.ini",
                                     {("%s" % config_from_file): "0", ("%s" % dir1): "", ("%s" % dir2): "",
-                                     ("%s" % str_garbage): "0"})
+                                     ("%s" % str_garbage): "0", tmp_copy: 0}, apend_default=True)
     if config is None:
         exit(0)
     if config.get(config_from_file) == 1:
@@ -206,9 +234,11 @@ if __name__ == '__main__':
     client = FileSyncClient(argv_1, argv_2)
     if config.get(config_from_file) == 1:
         client.garbage_flag = config.get(str_garbage) == 1
+        client.temp_copy = config.get(tmp_copy) == 1
     else:
-        if "garbage" in sys.argv:
-            client.garbage_flag = True
+        client.garbage_flag = "garbage" in sys.argv
+        client.temp_copy = "tmp_copy" in sys.argv
     client.log("start")
     client.run()
     client.log("done")
+
