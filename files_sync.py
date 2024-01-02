@@ -158,6 +158,8 @@ class FileSyncClient:
         return res
 
     def copy_file(self, file: FileInfo):
+        if file.st_is_file:
+            return
         self.log(
             f"copy {file.st_path if os.path.basename(self.sync_dir1) != os.path.basename(self.sync_dir2) else file.st_absolute_path} to {os.path.basename(self.sync_dir2) if file.st_left else os.path.basename(self.sync_dir1)}")
         target = os.path.join(self.sync_dir2 if file.st_left else self.sync_dir1, file.st_path)
@@ -170,8 +172,8 @@ class FileSyncClient:
                 shutil.move(target, self._get_temp_copy_path(file, not file.st_left))
             os.makedirs(os.path.dirname(target), exist_ok=True)
             shutil.move(temp_path, target) if self.temp_copy else None
-        except Exception as e:
-            traceback.print_exception(e)
+        except FileNotFoundError as e:
+            traceback.print_exc()
             self.log(e)
         return target
 
