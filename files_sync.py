@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import os
 import pathlib
 import re
@@ -12,6 +13,7 @@ from common import python_box
 
 
 class FileInfo(dict):
+    st_absolute_path: str
     st_mode: int  # protection bits,
     st_ino: int  # inode number,
     st_dev: int  # device,
@@ -26,7 +28,6 @@ class FileInfo(dict):
     st_mtime_ns: int  # time of most recent content modification in nanoseconds
     st_ctime_ns: int  # platform dependent (time of most recent metadata change on Unix, or the time of creation on Windows) in nanoseconds
     st_path: str
-    st_absolute_path: str
     st_is_file: bool
     st_left: bool
 
@@ -64,6 +65,12 @@ class FileSyncClient:
         self.garbage_flag = False
         # copy file to temp directory then move to target path ，avoid copy didnt finished when program be interrupted
         self.temp_copy = False
+
+    def __del__(self):
+        tmp1 = os.path.join(self.sync_dir1, self.str_temp_copy)
+        tmp2 = os.path.join(self.sync_dir2, self.str_temp_copy)
+        shutil.rmtree(tmp1, ignore_errors=True)
+        shutil.rmtree(tmp2, ignore_errors=True)
 
     def run(self):
         origin = self.load_saved_info()
@@ -158,23 +165,19 @@ class FileSyncClient:
         return res
 
     def copy_file(self, file: FileInfo):
-        if file.st_is_file:
-            return
         self.log(
             f"copy {file.st_path if os.path.basename(self.sync_dir1) != os.path.basename(self.sync_dir2) else file.st_absolute_path} to {os.path.basename(self.sync_dir2) if file.st_left else os.path.basename(self.sync_dir1)}")
         target = os.path.join(self.sync_dir2 if file.st_left else self.sync_dir1, file.st_path)
-        try:
-            temp_path = self._get_temp_copy_path(file, not file.st_left)
-            shutil.copy2(file.st_absolute_path,
-                         temp_path if self.temp_copy else target) if file.st_is_file else os.makedirs(
-                target, exist_ok=True)
-            if self.temp_copy and os.path.exists(target) and os.path.isfile(target):
-                shutil.move(target, self._get_temp_copy_path(file, not file.st_left))
-            os.makedirs(os.path.dirname(target), exist_ok=True)
-            shutil.move(temp_path, target) if self.temp_copy else None
-        except FileNotFoundError as e:
-            traceback.print_exc()
-            self.log(e)
+        if file.st_is_file:
+            if self.temp_copy:
+                temp_path = self._get_temp_copy_path(file, not file.st_left)
+                shutil.copy2(file.st_absolute_path, temp_path)
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                shutil.move(temp_path, target)
+            else:
+                shutil.copy2(file.st_absolute_path, target)
+        else:
+            os.makedirs(target, exist_ok=True)
         return target
 
     def del_file(self, file: FileInfo):
@@ -186,11 +189,11 @@ class FileSyncClient:
             garbage_dir = os.path.dirname(garbage_path)
             os.makedirs(garbage_dir, exist_ok=True)
             if os.path.exists(garbage_path):
-                if os.path.isfile(garbage_path):
+                if os.path.isfile(garbage_path):  # override garbage file
                     os.remove(garbage_path)
                     shutil.move(file.st_absolute_path, garbage_path)
                 else:
-                    os.removedirs(file.st_absolute_path)
+                    os.rmdir(file.st_absolute_path)
             else:
                 shutil.move(file.st_absolute_path, garbage_path)
         else:
@@ -213,7 +216,7 @@ class FileSyncClient:
         return os_path_join
 
     def log(self, logs):
-        python_box.log(logs, "config/sync.log")
+        python_box.log(logs, "config/files_sync.log")
 
 
 if __name__ == '__main__':
@@ -222,11 +225,20 @@ if __name__ == '__main__':
     dir2 = "dir2"
     config_from_file = "config from file"
     tmp_copy = "tmp_copy"
-    config = python_box.read_config("config/config_fileSync.ini",
+    config = python_box.read_config("config/config_file_sync.ini",
                                     {("%s" % config_from_file): "0", ("%s" % dir1): "", ("%s" % dir2): "",
                                      ("%s" % str_garbage): "0", tmp_copy: 0}, apend_default=True)
     if config is None:
         exit(0)
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler('config/files_sync.log')
+        ],
+    )
+
     if config.get(config_from_file) == 1:
         argv_1 = config.get(dir1)
         argv_2 = config.get(dir2)
@@ -242,5 +254,5 @@ if __name__ == '__main__':
         client.temp_copy = "tmp_copy" in sys.argv
     client.log("start")
     client.run()
+    client.__del__()
     client.log("done")
-
