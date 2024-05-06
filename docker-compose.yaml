@@ -6,6 +6,7 @@ services:
     network_mode: host
     privileged: true
     entrypoint: tail -f /dev/null
+    restart: unless-stopped
     environment:
       TZ: Asia/Shanghai
       SMBUSER: root
